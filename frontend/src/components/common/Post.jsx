@@ -7,17 +7,27 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "react-hot-toast";
+
 import LoadingSpinner from "./LoadingSpinner";
+import { formatPostDate } from "../../utils/date";
+
 const Post = ({ post }) => {
 	const [comment, setComment] = useState("");
 	const { data: authUser } = useQuery({ queryKey: ["authUser"] });
 	const queryClient = useQueryClient();
+	const postOwner = post.user;
+	const isLiked = post.likes.includes(authUser._id);
+
+	const isMyPost = authUser._id === post.user._id;
+
+	const formattedDate = formatPostDate(post.createdAt);
 
 	const { mutate: deletePost, isPending: isDeleting } = useMutation({
 		mutationFn: async () => {
+
+ 
 			try {
 				const res = await fetch(`/api/posts/${post._id}`, {
-
 					method: "DELETE",
 				});
 				const data = await res.json();
@@ -34,7 +44,6 @@ const Post = ({ post }) => {
 			queryClient.invalidateQueries({ queryKey: ["posts"] });
 		},
 	});
-
 	const { mutate: likePost, isPending: isLiking } = useMutation({
 		mutationFn: async () => {
 			try {
@@ -53,7 +62,6 @@ const Post = ({ post }) => {
 		onSuccess: (updatedLikes) => {
 			// this is not the best UX, bc it will refetch all posts
 			// queryClient.invalidateQueries({ queryKey: ["posts"] });
-
 			// instead, update the cache directly for that post
 			queryClient.setQueryData(["posts"], (oldData) => {
 				return oldData.map((p) => {
@@ -69,29 +77,53 @@ const Post = ({ post }) => {
 		},
 	});
 
-	const postOwner = post.user;
-	const isLiked = post.likes.includes(authUser._id);
+	const { mutate: commentPost, isPending: isCommenting } = useMutation({
+		mutationFn: async () => {
+			try {
+				const res = await fetch(`/api/posts/comment/${post._id}`, {
+					method: "POST",
+					headers: {
+						"Content-Type": "application/json",
+					},
+					body: JSON.stringify({ text: comment }),
+				});
+				const data = await res.json();
 
-	const isMyPost = authUser._id === post.user._id;
+				if (!res.ok) {
+					throw new Error(data.error || "Something went wrong");
+				}
+				return data;
+			} catch (error) {
+				throw new Error(error);
+			}
+		},
+		onSuccess: () => {
+			toast.success("Comment posted successfully");
+			setComment("");
+			queryClient.invalidateQueries({ queryKey: ["posts"] });
+		},
+		onError: (error) => {
+			toast.error(error.message);
+		},
+	});
 
-
-	const formattedDate = "1h";
-	const isCommenting = false;
 	const handleDeletePost = () => {
 		deletePost();
 	};
+
 	const handlePostComment = (e) => {
 		e.preventDefault();
+		if (isCommenting) return;
+		commentPost();
 	};
 
 	const handleLikePost = () => {
+
 		if (isLiking) return;
 		likePost();
 	};
-
 	return (
 		<>
-
 			<div className='flex gap-2 items-start p-4 border-b border-gray-700'>
 				<div className='avatar'>
 					<Link to={`/profile/${postOwner.username}`} className='w-8 rounded-full overflow-hidden'>
@@ -113,12 +145,10 @@ const Post = ({ post }) => {
 								{!isDeleting && (
 									<FaTrash className='cursor-pointer hover:text-red-500' onClick={handleDeletePost} />
 								)}
-
 								{isDeleting && <LoadingSpinner size='sm' />}
 							</span>
 						)}
 					</div>
-
 					<div className='flex flex-col gap-3 overflow-hidden'>
 						<span>{post.text}</span>
 						{post.img && (
@@ -186,8 +216,6 @@ const Post = ({ post }) => {
 										</button>
 									</form>
 								</div>
-
-
 								<form method='dialog' className='modal-backdrop'>
 									<button className='outline-none'>close</button>
 								</form>
@@ -204,14 +232,12 @@ const Post = ({ post }) => {
 								{isLiked && !isLiking && (
 									<FaRegHeart className='w-4 h-4 cursor-pointer text-pink-500 ' />
 								)}
-
 								<span
 									className={`text-sm  group-hover:text-pink-500 ${
 										isLiked ? "text-pink-500" : "text-slate-500"
 									}`}
 								>
 									{post.likes.length}
-
 								</span>
 							</div>
 						</div>
